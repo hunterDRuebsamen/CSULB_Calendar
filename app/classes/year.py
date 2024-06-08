@@ -100,6 +100,7 @@ class CalYear:
         self.day_awd_count: dict = {"fall": {Day.MONDAY: 0, Day.TUESDAY: 0, Day.WEDNESDAY: 0, Day.THURSDAY: 0, Day.FRIDAY: 0, Day.SATURDAY: 0},
                                    "spring": {Day.MONDAY: 0, Day.TUESDAY: 0, Day.WEDNESDAY: 0, Day.THURSDAY: 0, Day.FRIDAY: 0, Day.SATURDAY: 0}}
         # Important dates
+        self.start_date : date = date(self.inputs.year, self.inputs.month, self.inputs.day)
         self.fall_semester_start : date = None
         self.spring_semester_start : date = None
         self.commencement_end : date = None
@@ -120,6 +121,7 @@ class CalYear:
             cur_date = cur_date + relativedelta(months=1)
     
     def gen_schedule(self, awd: int = 170, id: int = 145, convocation: int = 2, winter: int = 12) -> Image and str:
+        
         # 170 <= Acadmeic Work Days (AWD) <= 180
         # 145 <= Instructional Days (ID) <= 149
         # Avoid starting a semester on a Friday.
@@ -134,15 +136,26 @@ class CalYear:
             return None, None
         # Compute Validity tests
         if not self.compute_spring_break(combine_cc_day=self.inputs.cesar_chavez):
+            print("ERROR: Invalid Cesar Chavez Day")
             return None, None
         if not self.compute_winter_session(winter):
+            print("ERROR: Invalid Winter Session")
             return None, None
         if not self.compute_id(id, convocation):
+            print("ERROR: Invalid Instructional Days")
             return None, None
         if not self.compute_summer_session():
+            print("ERROR: Invalid Summer Session")
             return None, None
         if not self.compute_awd(awd):
+            print("ERROR: Invalid Academic Work Days")
             return None, None
+        
+        self.compute_spring_break(combine_cc_day=self.inputs.cesar_chavez)
+        self.compute_winter_session(winter)
+        self.compute_id(id, convocation)
+        self.compute_summer_session()
+        self.compute_awd(awd)
             
         # Build calendar year starting at start date
         for i in range(13):
@@ -203,9 +216,11 @@ class CalYear:
 
         cur_date = self.start_date
         self.num_awd = 0
+        print(cur_date, self.fall_semester_start, self.winter_session_end)
         # christmas = date(self.start_date.year, 12, 25) # self.us_holidays.get_named("Christmas Day (observed)")[2]
-
         # For the week before instructional days start
+        self.compute_id(145, 2)
+        print(cur_date, self.fall_semester_start, self.winter_session_end)
         prelim_days_list = []
         while cur_date < self.fall_semester_start:
             # if current day isn't a Sunday, Saturday, or is a US Holiday
@@ -219,7 +234,7 @@ class CalYear:
                 self.month_stats[date(cur_date.year, cur_date.month, 1)]["AWD"] += 1
                 self.calc_awd_days(cur_date)
             cur_date = cur_date + relativedelta(days=1)
-
+            print(cur_date)
         if self.convocation_day == None:
             self.convocation_day = random.choice(prelim_days_list)
             self.cal_dict[self.convocation_day] = DayType.CONVOCATION
@@ -348,7 +363,7 @@ class CalYear:
             cur_date = cur_date + relativedelta(days=1)
         print(f"Fall IDs: {fall_id_cnt}")
         # goto end of winter session
-        cur_date = self.winter_session_end
+        # cur_date = self.winter_session_end
         cur_date = cur_date + relativedelta(days=1)
         
         if self.inputs.even:
@@ -356,6 +371,9 @@ class CalYear:
                 if self.day_id_count['fall'][key] < 14 or self.day_id_count['fall'][key] > 15:
                     print("ERROR: instructional for fall are not equal")
                     return False
+                
+        """ SETTING WINTER SESSION """
+        self.compute_winter_session(12)
 
         """ SPRING SEMESTER START DATE """
         # (must start on or after Jan 15, or 16 if leap year)
@@ -456,6 +474,10 @@ class CalYear:
         # if cur_date >= self.summer_session_start:
         #     print("ERROR: commencement overran summer session start date")
         #     return False
+        
+        """ COMPUTING SUMMER SESSION """
+        self.compute_summer_session()
+        
         return True
     
     def compute_spring_break(self, combine_cc_day=True) -> bool:
@@ -502,6 +524,7 @@ class CalYear:
                 self.cal_dict[cur_date] = DayType.WINTER_SESSION
                 wnt_cnt += 1
                 self.winter_session_id += 1
+                print(len(self.month_stats))
                 self.month_stats[date(cur_date.year, cur_date.month, 1)]["WIN"] += 1
         self.winter_session_end = cur_date
         return True
