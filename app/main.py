@@ -223,12 +223,22 @@ def generate_colored_excel_calendar(calyear):
 # FastAPI route for downloading the Excel file
 @app.post("/calendar/download_excel_colored")
 async def download_calendar_excel_colored(req: Calendar_Input):
+    logging.debug("Received request for download_excel_colored with data:")
+    logging.debug(req.dict())
     calyear = CalYear(req)
     if calyear.valid:
         excel_file = generate_colored_excel_calendar(calyear)
-        return StreamingResponse(excel_file, media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 
-                                 headers={"Content-Disposition": "attachment; filename=calendar_colored.xlsx"})
-    return {"message": "Invalid Calendar"}
+        headers = {
+            "Content-Disposition": "attachment; filename=calendar_colored.xlsx"
+        }
+        return StreamingResponse(
+            excel_file,
+            media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            headers=headers
+        )
+    else:
+        logging.error("Invalid Calendar Input")
+        return {"message": "Invalid Calendar"}
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)

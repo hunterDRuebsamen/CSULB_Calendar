@@ -5,6 +5,9 @@ import base64
 from PIL import Image
 import requests
 from io import BytesIO
+import logging
+
+logging.basicConfig(level=logging.DEBUG, filename='app.log', filemode='w')
 
 # Requests Tutorial
 # https://www.geeksforgeeks.org/python-requests-tutorial/#
@@ -15,8 +18,8 @@ def build_years_request(dt : datetime, input_dict : dict):
     # Making a POST request
     payload = input_dict
 
-    response = requests.post("http://127.0.0.1:8000/calendar/build_years", json=payload)
-    # response = requests.post("http://127.0.0.1:8000/calendar/build_years_test", json = payload)
+    # response = requests.post("http://127.0.0.1:8000/calendar/build_years", json=payload)
+    response = requests.post("http://127.0.0.1:8000/calendar/build_years_test", json = payload)
 
     if response.status_code == 200:
         result = response.json()
@@ -24,30 +27,28 @@ def build_years_request(dt : datetime, input_dict : dict):
     else:
         return None
     
-def download_calendar():
+def download_calendar(input_dict):
+    logging.debug("Attempting to download calendar with input_dict:")
+    logging.debug(input_dict)
+
     url = "http://127.0.0.1:8000/calendar/download_excel_colored"  # Ensure your FastAPI server is running
 
-    # Sample data to send with the request
-    req_data = {
-        "some_field": "value"  # Update this with the appropriate fields for Calendar_Input
-    }
-    
+    # Use the input_dict as the payload
+    req_data = input_dict
+
     # Make a POST request to the FastAPI endpoint
     response = requests.post(url, json=req_data)
-    
+
     if response.status_code == 200:
         # Retrieve the file content from FastAPI
         excel_data = response.content
-
-        # Streamlit download button for downloading the file
-        st.download_button(
-            label="Download Excel Calendar",
-            data=excel_data,
-            file_name="calendar_colored.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        )
+        logging.debug("Excel file downloaded successfully.")
+        return excel_data
     else:
+        logging.error(f"Failed to download calendar. Status code: {response.status_code}")
         st.error("Failed to download calendar")
+        return None
+
 
 def main():
     # Set Default Page Width = WIDE
@@ -114,64 +115,66 @@ def main():
             limit_winter_session = st.checkbox("Limit winter session to 10 days long")
             MLK_spring = st.checkbox("Spring starts after MLK")
             submitted = st.form_submit_button("Submit")
-
-
+    
     if submitted:
-        input_dict = {
+        st.session_state.input_dict = {
             'year': st.session_state.first_day.year,
             'month': st.session_state.first_day.month,
             'day': st.session_state.first_day.day,
-            'even':even,
-            'friday_convocation':friday_convocation,
-            'monday_fall':monday_fall,
-            'extended_fall':extended_fall,
-            'monday_final':monday_final,
-            'summer_sessession_start':summer_sessession_start,
-            'cesar_chavez':cesar_chavez,
-            'monday_spring_final':monday_spring_final,
-            'non_monday_commencement':non_monday_commencement,
-            'limit_winter_session':limit_winter_session,
-            'MLK_spring':MLK_spring
+            'even': even,
+            'friday_convocation': friday_convocation,
+            'monday_fall': monday_fall,
+            'extended_fall': extended_fall,
+            'monday_final': monday_final,
+            'summer_sessession_start': summer_sessession_start,
+            'cesar_chavez': cesar_chavez,
+            'monday_spring_final': monday_spring_final,
+            'non_monday_commencement': non_monday_commencement,
+            'limit_winter_session': limit_winter_session,
+            'MLK_spring': MLK_spring,
+            'width': 350  # Ensure 'width' is provided if required
         }
+
+        # Validate the date
         if st.session_state.first_day < date(st.session_state.first_day.year, 8, 15) or st.session_state.first_day > date(st.session_state.first_day.year, 8, 30):
             st.markdown("""#### Invalid Semester Start Date
                             Please choose a date between August 15 and August 30th """)
         else:
             with st.spinner("Building Calendars"):
-                results = build_years_request(st.session_state.first_day, input_dict)
+                results = build_years_request(st.session_state.first_day, st.session_state.input_dict)
                 if results:
-                    i = 1
-                    for result in results:
+                    for i, result in enumerate(results, start=1):
                         if result["image"]:
                             with st.expander(f"Option {i}"):
-                                col1, col2, col3 = st.columns([1, 15, 1])
-                                with col1:
-                                    st.write(' ')
-                                with col2:
-                                    img = base64.b64decode(result['image'])
-                                    st.image(img, output_format="PNG")
-                                with col3:
-                                    st.write(' ')
+                                img = base64.b64decode(result['image'])
+                                st.image(img, output_format="PNG")
 
-                            # Generate Excel for this option
-                            if st.button(f'Generate Excel for Option {i}', key=f'generate_button_{i}'):
-                                excel_content = download_calendar(input_dict)
-                                if excel_content:
-                                    st.session_state.excel_contents[i] = excel_content
-                                    st.success(f"Excel for Option {i} generated!")
-
-                            # Show the download button for generated Excel
-                            if i in st.session_state.excel_contents:
-                                st.download_button(
-                                    label=f"Download Excel for Option {i}",
-                                    data=st.session_state.excel_contents[i],
-                                    file_name=f"calendar_option_{i}.xlsx",
-                                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                                )
-
-                            i += 1
+                                # Generate Excel for this option
+                                if st.button(f'Generate Excel for Option {i}', key=f'generate_button_{i}'):
+                                    logging.debug(f"Generating Excel for Option {i}")
+                                    excel_content = download_calendar(st.session_state.input_dict)
+                                    if excel_content:
+                                        st.session_state.excel_contents[i] = excel_content
+                                        st.success(f"Excel for Option {i} generated!")
+                                    else:
+                                        st.error("Failed to generate Excel file.")
+                                # Show the download button for generated Excel
+                                if i in st.session_state.excel_contents:
+                                    st.download_button(
+                                        label=f"Download Excel for Option {i}",
+                                        data=st.session_state.excel_contents[i],
+                                        file_name=f"calendar_option_{i}.xlsx",
+                                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                                    )
                 else:
-                    st.markdown("#### No Valid Calendars Found. Please adjust your settings.")
+                    st.error("No valid calendars found. Please adjust your settings.")
+
+    # Add logging statements to trace the flow
+    logging.debug("Page loaded.")
+    if submitted:
+        logging.debug(f"Form submitted with input: {st.session_state.input_dict}")
+    if 'excel_contents' in st.session_state:
+        logging.debug(f"Excel contents: {list(st.session_state.excel_contents.keys())}")
 
 if __name__ == '__main__':
     main()
