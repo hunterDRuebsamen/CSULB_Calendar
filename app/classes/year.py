@@ -13,6 +13,9 @@ import random
 from typing import Dict, Any
 import hashlib
 import json
+from openpyxl import Workbook
+from openpyxl.styles import Font, PatternFill, Alignment
+
 
 class Day(Enum):
     MONDAY = 0
@@ -552,6 +555,24 @@ class CalYear:
             cur_date += timedelta(days=1)
 
         return True
+    
+
+    def populate_cal_dict(self):
+        # Example setup for `self.cal_dict`
+        for month in range(1, 13):
+            start_date = date(self.start_date.year, month, 1)
+            end_date = (start_date + relativedelta(months=1)) - timedelta(days=1)
+            current_date = start_date
+
+            while current_date <= end_date:
+                if current_date.weekday() in (5, 6):  # Assume weekends are VOID for simplicity
+                    self.cal_dict[current_date] = DayType.VOID
+                elif current_date.weekday() == 0:  # Example: Assign every Monday as AWD
+                    self.cal_dict[current_date] = DayType.AWD
+                else:
+                    self.cal_dict[current_date] = DayType.ID
+                current_date += timedelta(days=1)
+
 
     
     def setup_calendar(self):
@@ -910,6 +931,72 @@ class CalYear:
             return self.cal_dict[the_date]  # Return the DayType enum
         else:
             return DayType.NONE  # Default to DayType.NONE if the date isn't in the dictionary
+        
+    def generate_colored_excel_calendar(self):
+        # Create a new workbook and select the active worksheet
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Academic Calendar"
+
+        # Define the color map for each DayType
+        day_type_colors = {
+            DayType.NONE: "FFFFFF",  # White
+            DayType.AWD: "CCE5FF",   # Light blue
+            DayType.ID: "EFEF95",    # Yellow
+            DayType.CONVOCATION: "50E3C2",
+            DayType.FINALS: "F8CBAD",
+            DayType.NO_CLASS_CAMPUS_OPEN: "AE76C7",
+            DayType.COMMENCEMENT: "BD10E0",
+            DayType.SUMMER_SESSION: "C5E0B4",
+            DayType.WINTER_SESSION: "CFCFCF",
+            DayType.HOLIDAY: "FFC107",
+            DayType.VOID: "BDBDBD"
+        }
+
+        # Set the starting position for the calendar layout
+        start_row = 2
+        start_col = 1
+
+        # Iterate through each month and populate the calendar in Excel
+        for month_index, cal_month in enumerate(self.months):
+            row_offset = start_row + (month_index // 3) * 9
+            col_offset = start_col + (month_index % 3) * 8
+
+            # Write the month name
+            ws.cell(row=row_offset, column=col_offset, value=cal_month.get_title()).font = Font(bold=True)
+            # Day headers
+            for i, day_name in enumerate(["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"], start=col_offset):
+                ws.cell(row=row_offset + 1, column=i, value=day_name).alignment = Alignment(horizontal="center")
+
+            # Populate days with colors
+            for week_row, week in enumerate(cal_month.cal, start=row_offset + 2):
+                for day_col, day in enumerate(week, start=col_offset):
+                    if day == 0:
+                        continue
+                    cell = ws.cell(row=week_row, column=day_col, value=day)
+                    date_obj = date(cal_month.year, cal_month.month, day)
+                    if date_obj in self.cal_dict:
+                        day_type = self.cal_dict[date_obj]
+                        cell.fill = PatternFill(start_color=day_type_colors[day_type], end_color=day_type_colors[day_type], fill_type="solid")
+                        if day_type == DayType.HOLIDAY or day_type == DayType.COMMENCEMENT:
+                            cell.font = Font(bold=True)
+
+        # Add Legend
+        legend_row = row_offset + 10
+        for index, (day_type, color) in enumerate(day_type_colors.items()):
+            ws.cell(row=legend_row, column=start_col + index * 2, value=day_type.name)
+            ws.cell(row=legend_row, column=start_col + index * 2 + 1).fill = PatternFill(start_color=color, end_color=color, fill_type="solid")
+
+        # Add summary
+        summary_row = legend_row + 2
+        ws.cell(row=summary_row, column=start_col, value=f"Academic Work Days = {self.num_awd}").font = Font(bold=True)
+        ws.cell(row=summary_row + 1, column=start_col, value=f"Instructional Days = {self.num_id}").font = Font(bold=True)
+
+        # Save workbook to a BytesIO buffer instead of a file
+        output = BytesIO()
+        wb.save(output)
+        output.seek(0)  # Move the cursor to the beginning of the stream
+        return output
 
 
 
