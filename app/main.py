@@ -139,37 +139,41 @@ def build_years_request2(req: Calendar_Input):
 
 @app.post("/calendar/build_years")
 def build_years_request(req: Calendar_Input):
-    calyear = CalYear(req)
     result_dict = {}
-
-    args_list = [
-        (i, calyear, awd, id, convo_day, winter_sess)
-        for i, (awd, id, convo_day, winter_sess) in enumerate(
-            itertools.product(range(170, 181), range(145, 150), range(2, 6), range(12, 16))
-        )
-    ]
-
     results = []
-    for args in args_list:
-        idx, calyear, awd, id, convo_day, winter_sess = args
-        print(f"Processing calendar {idx}")
-        result_image, md5_hash = calyear.gen_schedule(awd, id, convo_day, winter_sess)
+    cnt = 0
+
+    # Generate all combinations of parameters
+    for awd, id_days, convo_day, winter_sess in itertools.product(
+        range(170, 181), range(145, 150), range(2, 6), range(12, 16)
+    ):
+        calyear = CalYear(req)
+        print(f"Processing calendar {cnt}")
+        result_image, md5_hash = calyear.gen_schedule(awd, id_days, convo_day, winter_sess)
         if md5_hash in result_dict:
-            result_image = None
             print("Duplicate calendar, discarded")
         else:
-            result_dict[md5_hash] = True
-
-        if result_image is None:
-            results.append({"image": None})
-        else:
-            img_bytes_io = io.BytesIO()
-            result_image.save(img_bytes_io, format='PNG')
-            img_str = base64.b64encode(img_bytes_io.getvalue()).decode("utf-8")
-            results.append({"image": img_str})
-
-        if len(results) % 10 == 0:
-            logging.debug(f"Processed {len(results)} calendars")
+            result_dict[md5_hash] = {
+                "awd": awd,
+                "id": id_days,
+                "convo_day": convo_day,
+                "winter_sess": winter_sess
+            }
+            if result_image:
+                img_bytes_io = io.BytesIO()
+                result_image.save(img_bytes_io, format='PNG')
+                img_str = base64.b64encode(img_bytes_io.getvalue()).decode("utf-8")
+                results.append({
+                    "image": img_str,
+                    "parameters": {
+                        "awd": awd,
+                        "id": id_days,
+                        "convo_day": convo_day,
+                        "winter_sess": winter_sess
+                    },
+                    "hash": md5_hash
+                })
+        cnt += 1
 
     return results
 
@@ -246,15 +250,24 @@ async def download_excel_colored(input_data: dict):
     calendar_input = Calendar_Input(**input_data)
     calendar = CalYear(calendar_input)
 
-    # Generate the calendar schedule
-    calendar.gen_schedule()
+    # Extract optional parameters
+    awd = input_data.get('awd')
+    id_days = input_data.get('id')
+    convo_day = input_data.get('convo_day')
+    winter_sess = input_data.get('winter_sess')
+
+    # Generate the calendar schedule with the provided parameters
+    if awd and id_days and convo_day and winter_sess:
+        calendar.gen_schedule(awd, id_days, convo_day, winter_sess)
+    else:
+        calendar.gen_schedule()
 
     # Generate Excel file
-    excel_file = calendar.generate_colored_excel_calendar()
+    excel_buffer = calendar.generate_colored_excel_calendar()
 
     # Return the file content for download
     headers = {"Content-Disposition": "attachment; filename=academic_calendar.xlsx"}
-    return StreamingResponse(content=excel_file, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", headers=headers)
+    return StreamingResponse(excel_buffer, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", headers=headers)
 
 
 if __name__ == "__main__":

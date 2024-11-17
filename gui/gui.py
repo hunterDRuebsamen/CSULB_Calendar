@@ -31,14 +31,14 @@ def build_years_request(dt : datetime, input_dict : dict):
     else:
         return None
     
-def download_calendar(input_dict):
+def download_calendar(input_dict, option_parameters):
     logging.debug("Attempting to download calendar with input_dict:")
     logging.debug(input_dict)
 
     url = "http://127.0.0.1:8000/calendar/download_excel_colored"  # Ensure your FastAPI server is running
 
-    # Use the input_dict as the payload
-    req_data = input_dict
+    # Merge input_dict with option_parameters
+    req_data = {**input_dict, **option_parameters}
 
     # Make a POST request to the FastAPI endpoint
     response = requests.post(url, json=req_data)
@@ -161,23 +161,35 @@ def main():
     if st.session_state.results:
         for i, result in enumerate(st.session_state.results, start=1):
             if result["image"]:
-                with st.expander(f"Option {i}"):
+                # Ensure the expander remains open after interaction
+                expander_key = f"option_{i}_expander"
+                if expander_key not in st.session_state:
+                    st.session_state[expander_key] = True
+
+                with st.expander(f"Option {i}", expanded=st.session_state[expander_key]):
                     img = base64.b64decode(result['image'])
                     st.image(img, output_format="PNG")
 
                     # Generate and download Excel file
-                    if st.button(f'Generate and Download Excel for Option {i}', key=f'download_button_{i}'):
+                    if st.button(f'Generate Excel for Option {i}', key=f'generate_button_{i}'):
                         logging.debug(f"Generating Excel for Option {i}")
-                        excel_content = download_calendar(st.session_state.input_dict)
+                        excel_content = download_calendar(st.session_state.input_dict, result["parameters"])
                         if excel_content:
-                            st.download_button(
-                                label=f"Download Excel for Option {i}",
-                                data=excel_content,
-                                file_name=f"calendar_option_{i}.xlsx",
-                                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                            )
+                            st.session_state.excel_contents[i] = excel_content
+                            st.session_state[expander_key] = True  # Keep expander open
+                            st.success(f"Excel for Option {i} generated!")
                         else:
                             st.error("Failed to generate Excel file.")
+
+                    # Show the download button for generated Excel
+                    if i in st.session_state.excel_contents:
+                        st.download_button(
+                            label=f"Download Excel for Option {i}",
+                            data=st.session_state.excel_contents[i],
+                            file_name=f"calendar_option_{i}.xlsx",
+                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                            key=f'download_button_{i}'
+                        )
     else:
         if st.session_state.submitted:
             st.error("No valid calendars found. Please adjust your settings.")
