@@ -21,7 +21,7 @@ def build_years_request(dt : datetime, input_dict : dict):
     payload = input_dict
     print(payload)
 
-    response = requests.post("http://127.0.0.1:8000/calendar/build_years", json=payload)
+    response = requests.post("http://127.0.0.1:8001/calendar/build_years", json=payload)
     # response = requests.post("http://127.0.0.1:8000/calendar/build_years_test", json = payload)
 
     print(response.status_code)
@@ -35,7 +35,7 @@ def download_calendar(input_dict, option_parameters):
     logging.debug("Attempting to download calendar with input_dict:")
     logging.debug(input_dict)
 
-    url = "http://127.0.0.1:8000/calendar/download_excel_colored"  # Ensure your FastAPI server is running
+    url = "http://127.0.0.1:8001/calendar/download_excel_colored"  # Ensure your FastAPI server is running
 
     # Merge input_dict with option_parameters
     req_data = {**input_dict, **option_parameters}
@@ -97,9 +97,9 @@ def main():
 
     # Inputs
     st.session_state.first_day = st.date_input(
-        "Select the first day of fall semester (15th - 30th of August ONLY)",
+        "Select the first day of fall semester (Weekdays between August 17th and 30th ONLY)",
         value=st.session_state.first_day,
-        min_value=date(2025, 8, 15),
+        min_value=date(2025, 8, 17),
         max_value=date(2050, 8, 30)
     )
 
@@ -149,8 +149,10 @@ def main():
         st.session_state.excel_contents = {}
 
     # Validate the date
-    if st.session_state.first_day < date(st.session_state.first_day.year, 8, 15) or st.session_state.first_day > date(st.session_state.first_day.year, 8, 30):
+    if st.session_state.first_day < date(st.session_state.first_day.year, 8, 17) or st.session_state.first_day > date(st.session_state.first_day.year, 8, 30):
         st.markdown("#### Invalid Semester Start Date\nPlease choose a date between August 15 and August 30th.")
+    elif st.session_state.first_day.weekday() >= 5:  # 5 = Saturday, 6 = Sunday
+        st.markdown("#### Invalid Semester Start Date\nPlease choose a weekday (Monday to Friday).")
     elif st.session_state.submitted:
         with st.spinner("Building Calendars"):
             results = build_years_request(st.session_state.first_day, st.session_state.input_dict)

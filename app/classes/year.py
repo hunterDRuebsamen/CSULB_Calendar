@@ -88,7 +88,7 @@ class CalYear:
         self.valid = True
         self.months = []
 
-        if self.start_date < date(inputs.year, 8, 15) or self.start_date >= date(inputs.year, 9, 1):
+        if self.start_date < date(inputs.year, 8, 17) or self.start_date >= date(inputs.year, 9, 1):
             self.valid = False
             return
 
