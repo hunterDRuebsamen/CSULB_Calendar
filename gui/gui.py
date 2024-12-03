@@ -21,7 +21,7 @@ def build_years_request(dt : datetime, input_dict : dict):
     payload = input_dict
     print(payload)
 
-    response = requests.post("http://127.0.0.1:8001/calendar/build_years", json=payload)
+    response = requests.post("http://127.0.0.1:8000/calendar/build_years", json=payload)
     # response = requests.post("http://127.0.0.1:8000/calendar/build_years_test", json = payload)
 
     print(response.status_code)
@@ -35,7 +35,7 @@ def download_calendar(input_dict, option_parameters):
     logging.debug("Attempting to download calendar with input_dict:")
     logging.debug(input_dict)
 
-    url = "http://127.0.0.1:8001/calendar/download_excel_colored"  # Ensure your FastAPI server is running
+    url = "http://127.0.0.1:8000/calendar/download_excel_colored"  # Ensure your FastAPI server is running
 
     # Merge input_dict with option_parameters
     req_data = {**input_dict, **option_parameters}
